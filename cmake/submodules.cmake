@@ -1,0 +1,15 @@
+include_guard(GLOBAL)
+
+function(add_subdirectories parent_dir)
+    file(GLOB CHILD_DIRS RELATIVE "${parent_dir}" "${parent_dir}/*")
+
+    foreach(child IN LISTS CHILD_DIRS)
+        set(full_path "${parent_dir}/${child}")
+        if(IS_DIRECTORY "${full_path}")
+            if(EXISTS "${full_path}/CMakeLists.txt")
+                message(STATUS "Adding subdirectory: ${full_path}")
+                add_subdirectory("${full_path}")
+            endif()
+        endif()
+    endforeach()
+endfunction()
