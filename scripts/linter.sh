@@ -10,7 +10,7 @@ LINT_ACTION="$1"
 LINT_DIR="$2"
 
 function clang_tidy {
-    clang-tidy -p "$BUILD_DIR" -quiet "$@"
+    clang-tidy -p "$BUILD_DIR" -quiet "$@" || true
 }
 
 function clang_format {

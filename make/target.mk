@@ -61,11 +61,8 @@ debug: $(PROJECT_BINARY)
 	@echo "Starting OpenOCD with interface: $(OPENOCD_INTERFACE), target: $(OPENOCD_TARGET)"
 	@$(OPENOCD) -f "$(OPENOCD_INTERFACE)" -f "$(OPENOCD_TARGET)" & \
 	OPENOCD_PID=$$!; \
-	trap 'kill $$OPENOCD_PID 2>/dev/null || true' EXIT; \
 	sleep 1; \
 	echo "Launching GDB..."; \
 	$(GDB) "$(PROJECT_BINARY)" -ex "target extended-remote :3333" -ex "load" -ex "monitor reset halt" -ex "continue"; \
 	echo "Stopping OpenOCD..."; \
-	kill $$OPENOCD_PID 2>/dev/null || true; \
-	trap - EXIT
-
+	kill $$OPENOCD_PID
