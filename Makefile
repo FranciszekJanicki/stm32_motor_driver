@@ -1,6 +1,9 @@
 include make/build.mk
 include make/linters.mk
-include make/target.mk
+include make/flash.mk
+include make/debug.mk
+include make/monitor.mk
+include make/cubemx.mk
 include make/submodules.mk
 include make/scripts.mk
 

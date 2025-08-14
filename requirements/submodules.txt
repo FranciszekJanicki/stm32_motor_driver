@@ -3,4 +3,3 @@ git@github.com:FranciszekJanicki/a4988.git submodules/a4988
 git@github.com:FranciszekJanicki/as5600.git submodules/as5600
 git@github.com:FranciszekJanicki/pid_regulator.git submodules/pid_regulator
 git@github.com:FranciszekJanicki/step_motor.git submodules/step_motor
-git@github.com:STMicroelectronics/STM32CubeL4.git submodules/STM32CubeL4

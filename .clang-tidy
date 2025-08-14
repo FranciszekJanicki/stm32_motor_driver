@@ -7,5 +7,5 @@ Checks: >
   -clang-diagnostic-error,
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '(main|components)/.*'
+HeaderFilterRegex: '(main|components|^components/cubemx)/.*'
 FormatStyle: file

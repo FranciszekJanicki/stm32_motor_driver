@@ -4,10 +4,6 @@ target_sources(main PRIVATE
     main.c
     syscalls.c
     sysmem.c
-    i2c.c
-    tim.c
-    usart.c
-    gpio.c
 )
 
 target_link_libraries(main PRIVATE
@@ -15,7 +11,7 @@ target_link_libraries(main PRIVATE
     step_motor
     as5600
     motor_driver
-    stm32l4xx
+    stm32cubemx
 )
 
 target_compile_options(main PUBLIC

@@ -13,6 +13,3 @@
 [submodule "submodules/step_motor"]
 	path = submodules/step_motor
 	url = git@github.com:FranciszekJanicki/step_motor.git
-[submodule "submodules/STM32CubeL4"]
-	path = submodules/STM32CubeL4
-	url = git@github.com:STMicroelectronics/STM32CubeL4.git
