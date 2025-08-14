@@ -1,3 +1,4 @@
+#include "gpio.h"
 #include "usart.h"
 #include <stdio.h>
 
@@ -212,52 +213,6 @@
 //     return AS5600_ERR_OK;
 // }
 
-// void Error_Handler(void)
-// {
-//     __disable_irq();
-//     while (1) {
-//     }
-// }
-
-// void SystemClock_Config(void)
-// {
-//     RCC_OscInitTypeDef RCC_OscInit = {0};
-//     RCC_ClkInitTypeDef RCC_ClkInit = {0};
-
-//     if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) !=
-//         HAL_OK) {
-//         Error_Handler();
-//     }
-
-//     RCC_OscInit.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-//     RCC_OscInit.HSIState = RCC_HSI_ON;
-//     RCC_OscInit.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-//     RCC_OscInit.PLL.PLLState = RCC_PLL_ON;
-//     RCC_OscInit.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-//     RCC_OscInit.PLL.PLLM = 1;
-//     RCC_OscInit.PLL.PLLN = 10;
-//     RCC_OscInit.PLL.PLLP = RCC_PLLP_DIV7;
-//     RCC_OscInit.PLL.PLLQ = RCC_PLLQ_DIV2;
-//     RCC_OscInit.PLL.PLLR = RCC_PLLR_DIV2;
-//     if (HAL_RCC_OscConfig(&RCC_OscInit) != HAL_OK) {
-//         Error_Handler();
-//     }
-
-//     RCC_ClkInit.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
-//                             RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-//     RCC_ClkInit.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-//     RCC_ClkInit.AHBCLKDivider = RCC_SYSCLK_DIV1;
-//     RCC_ClkInit.APB1CLKDivider = RCC_HCLK_DIV1;
-//     RCC_ClkInit.APB2CLKDivider = RCC_HCLK_DIV1;
-
-//     if (HAL_RCC_ClockConfig(&RCC_ClkInit, FLASH_LATENCY_4) != HAL_OK) {
-//         Error_Handler();
-//     }
-
-//     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq() / 1000);
-//     HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-// }
-
 void SystemClock_Config(void);
 
 int main(void)
@@ -265,8 +220,8 @@ int main(void)
     HAL_Init();
     SystemClock_Config();
 
-    GPIO_Init();
-    UART2_Init();
+    MX_GPIO_Init();
+    MX_USART2_UART_Init();
 
     while (1) {
         puts("DUPA\n\r");

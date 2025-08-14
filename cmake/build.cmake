@@ -2,22 +2,6 @@ include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/common.cmake)
 
-set(CMAKE_SYSTEM_NAME Generic)
-set(CMAKE_SYSTEM_PROCESSOR arm)
-
-set(TOOLCHAIN_PREFIX arm-none-eabi-)
-
-set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}gcc)
-set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++)
-set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
-set(CMAKE_LINKER ${TOOLCHAIN_PREFIX}g++)
-set(CMAKE_OBJCOPY ${TOOLCHAIN_PREFIX}objcopy)
-set(CMAKE_SIZE ${TOOLCHAIN_PREFIX}size)
-
-set(CMAKE_EXECUTABLE_SUFFIX_C ".elf")
-set(CMAKE_EXECUTABLE_SUFFIX_CXX ".elf")
-set(CMAKE_EXECUTABLE_SUFFIX_ASM ".elf")
-
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 23)
 
@@ -27,17 +11,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fdata-sections -ffunction-sections")
-set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp -MMD -MP")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics")
-
-set(CMAKE_EXE_LINKER_FLAGS
-    "--specs=nano.specs \
-    -Wl,-Map=${CMAKE_PROJECT_NAME}.map \
-    -Wl,--gc-sections \
-    -Wl,--print-memory-usage"
-)
-
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
