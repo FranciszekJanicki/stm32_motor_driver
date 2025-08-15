@@ -12,6 +12,7 @@ target_link_libraries(main PRIVATE
     as5600
     motor_driver
     stm32cubemx
+    pid_regulator
 )
 
 target_compile_options(main PUBLIC
