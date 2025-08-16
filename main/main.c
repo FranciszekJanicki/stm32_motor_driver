@@ -214,32 +214,10 @@ as5600_err_t as5600_init_chip(as5600_t* as5600,
     return AS5600_ERR_OK;
 }
 
-static float32_t unwrap_angle(float32_t raw_angle_deg)
-{
-    static float32_t last_angle = 0.0F;
-    static int32_t revolutions = 0;
-
-    float32_t delta = raw_angle_deg - last_angle;
-
-    if (delta > 180.0f) {
-        revolutions -= 1;
-    } else if (delta < -180.0f) {
-        revolutions += 1;
-    }
-
-    last_angle = raw_angle_deg;
-
-    return raw_angle_deg + (360.0f * revolutions);
-}
-
 motor_driver_err_t motor_driver_encoder_get_position(void* user,
                                                      float32_t* position)
 {
-    // *position = step_motor_get_position(user);
-
     as5600_get_angle_data_scaled_bus(user, position);
-
-    *position = unwrap_angle(*position);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -275,19 +253,11 @@ static void delta_timer_start(void)
 }
 
 static bool volatile has_delta_timer_elapsed = false;
-static bool volatile has_step_pulse_finished = false;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 {
     if (htim->Instance == TIM1) {
         has_delta_timer_elapsed = true;
-    }
-}
-
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef* htim)
-{
-    if (htim->Instance == TIM2) {
-        has_step_pulse_finished = true;
     }
 }
 
@@ -304,15 +274,13 @@ int main(void)
     MX_TIM1_Init();
     MX_I2C1_Init();
 
-    float32_t position = 200.0F;
-    float32_t start_position = 0.0F;
-    float32_t delta_time = 0.002F;
-    float32_t min_speed = 5.0F;
-    float32_t max_speed = 1000.0;
-    float32_t min_position = 0.0F;
-    float32_t max_position = 360.0F;
-    float32_t max_current = 2.0F;
     float32_t step_change = 1.8F;
+    float32_t min_position = 0.0F + step_change / 2.0F;
+    float32_t max_position = 360.0F - step_change / 2;
+    float32_t min_speed = 0.1F;
+    float32_t max_speed = 1000.0F;
+    float32_t max_current = 2.0F;
+
     float32_t prop_gain = 1.0F;
     float32_t int_gain = 0.0F;
     float32_t dot_gain = 0.0F;
@@ -352,17 +320,19 @@ int main(void)
             .device_user = &a4988,
             .device_set_frequency = step_motor_device_set_frequency,
             .device_set_direction = step_motor_device_set_direction},
-        start_position);
+        0.0F);
 
     pid_regulator_t regulator;
-    pid_regulator_initialize(&regulator,
-                             &(pid_regulator_config_t){.prop_gain = prop_gain,
-                                                       .int_gain = int_gain,
-                                                       .dot_gain = dot_gain,
-                                                       .min_control = min_speed,
-                                                       .max_control = max_speed,
-                                                       .sat_gain = sat_gain,
-                                                       .dot_time = dot_time});
+    pid_regulator_initialize(
+        &regulator,
+        &(pid_regulator_config_t){.prop_gain = prop_gain,
+                                  .int_gain = int_gain,
+                                  .dot_gain = dot_gain,
+                                  .min_control = min_speed,
+                                  .max_control = max_speed,
+                                  .sat_gain = sat_gain,
+                                  .dot_time = dot_time,
+                                  .dead_error = step_change / 2.0F});
 
     motor_driver_t driver;
     motor_driver_initialize(
@@ -383,14 +353,18 @@ int main(void)
 
     delta_timer_start();
 
+    float32_t position = 10.0F, position_step = 1.0F;
+    float32_t delta_time = 0.001F;
+
     while (1) {
         if (has_delta_timer_elapsed) {
             motor_driver_set_position(&driver, position, delta_time);
             has_delta_timer_elapsed = false;
-        }
-        if (has_step_pulse_finished) {
-            step_motor_update_step_count(&motor);
-            has_step_pulse_finished = false;
+            if (position > max_position || position < min_position) {
+                position_step *= -1.0F;
+            }
+
+            // position += position_step;
         }
     }
 }
