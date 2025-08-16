@@ -4,6 +4,7 @@
 #include "i2c.h"
 #include "motor_driver.h"
 #include "pid_regulator.h"
+#include "rotary_encoder.h"
 #include "step_motor.h"
 #include "stm32l476xx.h"
 #include "stm32l4xx_hal.h"
@@ -105,7 +106,7 @@ static a4988_err_t a4988_pwm_set_frequency(void* user, uint32_t frequency)
 
 static a4988_err_t a4988_gpio_write_pin(void* user, uint32_t pin, bool state)
 {
-    HAL_GPIO_WritePin(user, (uint16_t)pin, (GPIO_PinState)state);
+    HAL_GPIO_WritePin(user, (uint16_t)pin, (GPIO_PinState)!state);
 
     return A4988_ERR_OK;
 }
@@ -213,10 +214,32 @@ as5600_err_t as5600_init_chip(as5600_t* as5600,
     return AS5600_ERR_OK;
 }
 
+static float32_t unwrap_angle(float32_t raw_angle_deg)
+{
+    static float32_t last_angle = 0.0F;
+    static int32_t revolutions = 0;
+
+    float32_t delta = raw_angle_deg - last_angle;
+
+    if (delta > 180.0f) {
+        revolutions -= 1;
+    } else if (delta < -180.0f) {
+        revolutions += 1;
+    }
+
+    last_angle = raw_angle_deg;
+
+    return raw_angle_deg + (360.0f * revolutions);
+}
+
 motor_driver_err_t motor_driver_encoder_get_position(void* user,
                                                      float32_t* position)
 {
-    *position = step_motor_get_position(user);
+    // *position = step_motor_get_position(user);
+
+    as5600_get_angle_data_scaled_bus(user, position);
+
+    *position = unwrap_angle(*position);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -241,7 +264,7 @@ motor_driver_err_t motor_driver_regulator_get_control(void* user,
                                                       float32_t* control,
                                                       float32_t delta_time)
 {
-    *control = pid_regulator_get_sat_control(user, error, delta_time);
+    pid_regulator_get_sat_control(user, error, delta_time, control);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -261,7 +284,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
     }
 }
 
-void HAL_TIM_PulseFinishedCallback(TIM_HandleTypeDef* htim)
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef* htim)
 {
     if (htim->Instance == TIM2) {
         has_step_pulse_finished = true;
@@ -281,12 +304,10 @@ int main(void)
     MX_TIM1_Init();
     MX_I2C1_Init();
 
-    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
-
-    float32_t position = 10.0F;
+    float32_t position = 200.0F;
     float32_t start_position = 0.0F;
     float32_t delta_time = 0.002F;
-    float32_t min_speed = 0.0F;
+    float32_t min_speed = 5.0F;
     float32_t max_speed = 1000.0;
     float32_t min_position = 0.0F;
     float32_t max_position = 360.0F;
@@ -352,7 +373,7 @@ int main(void)
                                  .max_speed = max_speed,
                                  .max_current = max_current},
         &(motor_driver_interface_t){
-            .encoder_user = &motor,
+            .encoder_user = &as5600,
             .encoder_get_position = motor_driver_encoder_get_position,
             .fault_get_current = motor_driver_fault_get_current,
             .motor_user = &motor,

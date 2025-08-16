@@ -1,12 +1,8 @@
 include make/common.mk
 
 CUBEMX_BINARY ?= stm32cubemx
-CUBEPROG_BINARY ?= stm32cubeprog
+CUBEMX_FILE ?= $(CUBEMX_DIR)/cubemx.ioc
 
 .PHONY: cubemx
 cubemx:
-	"$(CUBEMX_BINARY)"
-
-.PHONY: cubeprog
-cubeprog:
-	"$(CUBEPROG_BINARY)"
+	@test -f "$(CUBEMX_FILE)" && "$(CUBEMX_BINARY)" "$(CUBEMX_FILE)" || "$(CUBEMX_BINARY)"

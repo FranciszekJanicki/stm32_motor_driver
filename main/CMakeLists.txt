@@ -13,6 +13,7 @@ target_link_libraries(main PRIVATE
     motor_driver
     stm32cubemx
     pid_regulator
+    rotary_encoder
 )
 
 target_compile_options(main PUBLIC
