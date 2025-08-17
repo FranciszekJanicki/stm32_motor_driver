@@ -274,14 +274,17 @@ int main(void)
     MX_TIM1_Init();
     MX_I2C1_Init();
 
-    float32_t step_change = 1.8F;
-    float32_t min_position = 0.0F + step_change / 2.0F;
-    float32_t max_position = 360.0F - step_change / 2;
-    float32_t min_speed = 0.1F;
+    float32_t position = 360.0F, position_step = 1.0F;
+    float32_t delta_time = 0.001F;
+
+    float32_t step_change = 1.8F / 16.0F;
+    float32_t min_position = 0.0F + step_change;
+    float32_t max_position = 360.0F - step_change;
+    float32_t min_speed = step_change / delta_time;
     float32_t max_speed = 1000.0F;
     float32_t max_current = 2.0F;
 
-    float32_t prop_gain = 1.0F;
+    float32_t prop_gain = 5.0F;
     float32_t int_gain = 0.0F;
     float32_t dot_gain = 0.0F;
     float32_t dot_time = 0.0F;
@@ -332,7 +335,7 @@ int main(void)
                                   .max_control = max_speed,
                                   .sat_gain = sat_gain,
                                   .dot_time = dot_time,
-                                  .dead_error = step_change / 2.0F});
+                                  .dead_error = step_change});
 
     motor_driver_t driver;
     motor_driver_initialize(
@@ -352,9 +355,6 @@ int main(void)
             .regulator_get_control = motor_driver_regulator_get_control});
 
     delta_timer_start();
-
-    float32_t position = 10.0F, position_step = 1.0F;
-    float32_t delta_time = 0.001F;
 
     while (1) {
         if (has_delta_timer_elapsed) {
