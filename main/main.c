@@ -10,6 +10,7 @@
 #include "stm32l4xx_hal.h"
 #include "tim.h"
 #include "usart.h"
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -232,7 +233,7 @@ motor_driver_err_t motor_driver_fault_get_current(void* user,
 
 motor_driver_err_t motor_driver_motor_set_speed(void* user, float32_t speed)
 {
-    step_motor_set_speed(user, speed);
+    assert(step_motor_set_speed(user, speed) == 0);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -242,7 +243,8 @@ motor_driver_err_t motor_driver_regulator_get_control(void* user,
                                                       float32_t* control,
                                                       float32_t delta_time)
 {
-    pid_regulator_get_sat_control(user, error, delta_time, control);
+    assert(pid_regulator_get_sat_control(user, error, delta_time, control) ==
+           0);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -274,21 +276,22 @@ int main(void)
     MX_TIM1_Init();
     MX_I2C1_Init();
 
-    float32_t position = 360.0F, position_step = 1.0F;
+    float32_t position = 200.0F, position_step = 0.0F;
     float32_t delta_time = 0.001F;
 
     float32_t step_change = 1.8F / 16.0F;
-    float32_t min_position = 0.0F + step_change;
-    float32_t max_position = 360.0F - step_change;
-    float32_t min_speed = step_change / delta_time;
+    float32_t min_position = 0.0F + step_change / 2.0F;
+    float32_t max_position = 360.0F - step_change / 2.0F;
+    float32_t min_speed = step_change / 2.0F;
     float32_t max_speed = 1000.0F;
     float32_t max_current = 2.0F;
 
-    float32_t prop_gain = 5.0F;
+    float32_t prop_gain = 20.0F;
     float32_t int_gain = 0.0F;
     float32_t dot_gain = 0.0F;
     float32_t dot_time = 0.0F;
     float32_t sat_gain = 0.0F;
+    float32_t dead_error = step_change / 2.0F;
 
     a4988_t a4988;
     a4988_initialize(
@@ -318,7 +321,8 @@ int main(void)
         &motor,
         &(step_motor_config_t){.min_speed = min_speed,
                                .max_speed = max_speed,
-                               .step_change = step_change},
+                               .step_change = step_change,
+                               .should_wrap_position = true},
         &(step_motor_interface_t){
             .device_user = &a4988,
             .device_set_frequency = step_motor_device_set_frequency,
@@ -335,7 +339,7 @@ int main(void)
                                   .max_control = max_speed,
                                   .sat_gain = sat_gain,
                                   .dot_time = dot_time,
-                                  .dead_error = step_change});
+                                  .dead_error = dead_error});
 
     motor_driver_t driver;
     motor_driver_initialize(
@@ -360,11 +364,11 @@ int main(void)
         if (has_delta_timer_elapsed) {
             motor_driver_set_position(&driver, position, delta_time);
             has_delta_timer_elapsed = false;
-            if (position > max_position || position < min_position) {
+            if (position >= max_position || position <= min_position) {
                 position_step *= -1.0F;
             }
 
-            // position += position_step;
+            position += position_step;
         }
     }
 }
