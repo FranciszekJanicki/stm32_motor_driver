@@ -16,6 +16,38 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PROP_GAIN (5.0F)
+#define INT_GAIN (0.0F)
+#define DOT_GAIN (0.0F)
+#define SAT_GAIN (0.0F)
+#define DOT_TIME (0.0F)
+#define MIN_POSITION (0.0F)
+#define MAX_POSITION (359.0F)
+#define MIN_SPEED (1.0F)
+#define MAX_SPEED (1000.0F)
+#define MIN_ACCELERATION (0.0F)
+#define MAX_ACCELERATION (1000.0F)
+#define STEP_CHANGE (1.8F / 16.0F)
+#define CURRENT_LIMIT (2.0F)
+#define DEAD_ERROR (1.8F / 16.0F)
+
+#define DELTA_TIME (10.0F / 1000.0F)
+#define DELTA_TIMER (&htim1)
+
+#define AS5600_DIR_GPIO GPIOC
+#define AS5600_DIR_PIN (1U << 2U)
+#define AS5600_I2C_BUS (&hi2c1)
+#define AS5600_I2C_ADDRESS (AS5600_SLAVE_ADDRESS << 1U)
+
+#define A4988_DIR_GPIO GPIOA
+#define A4988_DIR_PIN (1U << 9U)
+#define A4988_PWM_TIMER (&htim2)
+#define A4988_PWM_CHANNEL (TIM_CHANNEL_1)
+
+#define REFERENCE_POSITION (300.0F)
+#define REFERENCE_SPEED (100.0F)
+#define REFERENCE_ACCELERATION (100.0F)
+
 static bool frequency_to_prescaler_and_period(uint32_t frequency_hz,
                                               uint32_t clock_hz,
                                               uint32_t max_prescaler,
@@ -50,14 +82,14 @@ static bool frequency_to_prescaler_and_period(uint32_t frequency_hz,
 
 static a4988_err_t a4988_pwm_start(void* user)
 {
-    HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start_IT(A4988_PWM_TIMER, A4988_PWM_CHANNEL);
 
     return A4988_ERR_OK;
 }
 
 static a4988_err_t a4988_pwm_stop(void* user)
 {
-    HAL_TIM_PWM_Stop_IT(&htim2, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Stop_IT(A4988_PWM_TIMER, A4988_PWM_CHANNEL);
 
     return A4988_ERR_OK;
 }
@@ -88,18 +120,12 @@ static a4988_err_t a4988_pwm_set_frequency(void* user, uint32_t frequency)
             compare = period;
         }
 
-        __HAL_TIM_DISABLE(&htim2);
-        __HAL_TIM_SET_COUNTER(&htim2, 0U);
-        __HAL_TIM_SET_PRESCALER(&htim2, prescaler);
-        __HAL_TIM_SET_AUTORELOAD(&htim2, period);
-        __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, compare);
-        __HAL_TIM_ENABLE(&htim2);
-
-        // printf("FREQ: %lu, PSC: %lu, CP: %lu, CMP: %lu\n\r",
-        //        frequency,
-        //        prescaler,
-        //        period,
-        //        compare);
+        __HAL_TIM_DISABLE(A4988_PWM_TIMER);
+        __HAL_TIM_SET_COUNTER(A4988_PWM_TIMER, 0U);
+        __HAL_TIM_SET_PRESCALER(A4988_PWM_TIMER, prescaler);
+        __HAL_TIM_SET_AUTORELOAD(A4988_PWM_TIMER, period);
+        __HAL_TIM_SET_COMPARE(A4988_PWM_TIMER, A4988_PWM_CHANNEL, compare);
+        __HAL_TIM_ENABLE(A4988_PWM_TIMER);
     }
 
     return A4988_ERR_OK;
@@ -138,8 +164,8 @@ static as5600_err_t as5600_bus_write_data(void* user,
                                           uint8_t const* data,
                                           size_t data_size)
 {
-    HAL_I2C_Mem_Write(&hi2c1,
-                      AS5600_SLAVE_ADDRESS << 1U,
+    HAL_I2C_Mem_Write(AS5600_I2C_BUS,
+                      AS5600_I2C_ADDRESS,
                       address,
                       1U,
                       (uint8_t*)data,
@@ -154,8 +180,8 @@ static as5600_err_t as5600_bus_read_data(void* user,
                                          uint8_t* data,
                                          size_t data_size)
 {
-    HAL_I2C_Mem_Read(&hi2c1,
-                     AS5600_SLAVE_ADDRESS << 1U,
+    HAL_I2C_Mem_Read(AS5600_I2C_BUS,
+                     AS5600_I2C_ADDRESS,
                      address,
                      1U,
                      data,
@@ -233,7 +259,7 @@ motor_driver_err_t motor_driver_fault_get_current(void* user,
 
 motor_driver_err_t motor_driver_motor_set_speed(void* user, float32_t speed)
 {
-    assert(step_motor_set_speed(user, speed) == 0);
+    step_motor_set_speed(user, speed);
 
     return MOTOR_DRIVER_ERR_OK;
 }
@@ -243,22 +269,21 @@ motor_driver_err_t motor_driver_regulator_get_control(void* user,
                                                       float32_t* control,
                                                       float32_t delta_time)
 {
-    assert(pid_regulator_get_sat_control(user, error, delta_time, control) ==
-           0);
+    pid_regulator_get_sat_control(user, error, delta_time, control);
 
     return MOTOR_DRIVER_ERR_OK;
 }
 
 static void delta_timer_start(void)
 {
-    HAL_TIM_Base_Start_IT(&htim1);
+    HAL_TIM_Base_Start_IT(DELTA_TIMER);
 }
 
 static bool volatile has_delta_timer_elapsed = false;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
 {
-    if (htim->Instance == TIM1) {
+    if (htim == DELTA_TIMER) {
         has_delta_timer_elapsed = true;
     }
 }
@@ -276,28 +301,11 @@ int main(void)
     MX_TIM1_Init();
     MX_I2C1_Init();
 
-    float32_t position = 200.0F, position_step = 0.0F;
-    float32_t delta_time = 0.001F;
-
-    float32_t step_change = 1.8F / 16.0F;
-    float32_t min_position = 0.0F + step_change / 2.0F;
-    float32_t max_position = 360.0F - step_change / 2.0F;
-    float32_t min_speed = step_change / 2.0F;
-    float32_t max_speed = 1000.0F;
-    float32_t max_current = 2.0F;
-
-    float32_t prop_gain = 20.0F;
-    float32_t int_gain = 0.0F;
-    float32_t dot_gain = 0.0F;
-    float32_t dot_time = 0.0F;
-    float32_t sat_gain = 0.0F;
-    float32_t dead_error = step_change / 2.0F;
-
     a4988_t a4988;
     a4988_initialize(
         &a4988,
-        &(a4988_config_t){.pin_dir = 1U << 9U},
-        &(a4988_interface_t){.gpio_user = GPIOA,
+        &(a4988_config_t){.pin_dir = A4988_DIR_PIN},
+        &(a4988_interface_t){.gpio_user = A4988_DIR_GPIO,
                              .gpio_write_pin = a4988_gpio_write_pin,
                              .pwm_start = a4988_pwm_start,
                              .pwm_stop = a4988_pwm_stop,
@@ -306,23 +314,23 @@ int main(void)
     as5600_t as5600;
     as5600_initialize(
         &as5600,
-        &(as5600_config_t){.dir_pin = 1U << 2U,
-                           .min_angle = min_position,
-                           .max_angle = max_position},
-        &(as5600_interface_t){.gpio_user = GPIOC,
+        &(as5600_config_t){.dir_pin = AS5600_DIR_PIN,
+                           .min_angle = MIN_POSITION,
+                           .max_angle = MAX_POSITION},
+        &(as5600_interface_t){.gpio_user = AS5600_DIR_GPIO,
                               .gpio_write_pin = as5600_gpio_write_pin,
                               .bus_write_data = as5600_bus_write_data,
                               .bus_read_data = as5600_bus_read_data});
 
-    as5600_init_chip(&as5600, min_position, max_position);
+    as5600_init_chip(&as5600, MIN_POSITION, MAX_POSITION);
 
     step_motor_t motor;
     step_motor_initialize(
         &motor,
-        &(step_motor_config_t){.min_speed = min_speed,
-                               .max_speed = max_speed,
-                               .step_change = step_change,
-                               .should_wrap_position = true},
+        &(step_motor_config_t){.min_speed = MIN_SPEED,
+                               .max_speed = MAX_SPEED,
+                               .step_change = STEP_CHANGE,
+                               .should_wrap_position = false},
         &(step_motor_interface_t){
             .device_user = &a4988,
             .device_set_frequency = step_motor_device_set_frequency,
@@ -332,23 +340,26 @@ int main(void)
     pid_regulator_t regulator;
     pid_regulator_initialize(
         &regulator,
-        &(pid_regulator_config_t){.prop_gain = prop_gain,
-                                  .int_gain = int_gain,
-                                  .dot_gain = dot_gain,
-                                  .min_control = min_speed,
-                                  .max_control = max_speed,
-                                  .sat_gain = sat_gain,
-                                  .dot_time = dot_time,
-                                  .dead_error = dead_error});
+        &(pid_regulator_config_t){.prop_gain = PROP_GAIN,
+                                  .int_gain = INT_GAIN,
+                                  .dot_gain = DOT_GAIN,
+                                  .min_control = MIN_SPEED,
+                                  .max_control = MAX_SPEED,
+                                  .sat_gain = SAT_GAIN,
+                                  .dot_time = DOT_TIME,
+                                  .dead_error = DEAD_ERROR});
 
     motor_driver_t driver;
     motor_driver_initialize(
         &driver,
-        &(motor_driver_config_t){.min_position = min_position,
-                                 .max_position = max_position,
-                                 .min_speed = min_speed,
-                                 .max_speed = max_speed,
-                                 .max_current = max_current},
+        &(motor_driver_config_t){.min_speed = MIN_SPEED,
+                                 .max_speed = MAX_SPEED,
+                                 .min_position = MIN_POSITION,
+                                 .max_position = MAX_POSITION,
+                                 .min_acceleration = MIN_ACCELERATION,
+                                 .max_acceleration = MAX_ACCELERATION,
+                                 .max_current = CURRENT_LIMIT,
+                                 .should_wrap_position = false},
         &(motor_driver_interface_t){
             .encoder_user = &as5600,
             .encoder_get_position = motor_driver_encoder_get_position,
@@ -360,15 +371,20 @@ int main(void)
 
     delta_timer_start();
 
+    motor_driver_state_t state;
+
     while (1) {
         if (has_delta_timer_elapsed) {
-            motor_driver_set_position(&driver, position, delta_time);
-            has_delta_timer_elapsed = false;
-            if (position >= max_position || position <= min_position) {
-                position_step *= -1.0F;
-            }
+            motor_driver_set_position(&driver, REFERENCE_POSITION, DELTA_TIME);
+            motor_driver_get_state(&driver, &state);
+            printf("POS: %f, REF: %f, ERR: %f, SPD: %f, CUR: %f\n\r",
+                   state.measure_position,
+                   REFERENCE_POSITION,
+                   REFERENCE_POSITION - state.measure_position,
+                   state.control_speed,
+                   state.fault_current);
 
-            position += position_step;
+            has_delta_timer_elapsed = false;
         }
     }
 }
