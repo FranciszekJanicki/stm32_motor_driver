@@ -16,3 +16,6 @@
 [submodule "submodules/rotary_encoder"]
 	path = submodules/rotary_encoder
 	url = git@github.com:FranciszekJanicki/rotary_encoder.git
+[submodule "submodules/ina226.git"]
+	path = submodules/ina226.git
+	url = git@github.com:FranciszekJanicki/ina226.git

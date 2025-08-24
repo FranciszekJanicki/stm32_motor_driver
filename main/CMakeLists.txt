@@ -10,6 +10,7 @@ target_link_libraries(main PRIVATE
     a4988
     step_motor
     as5600
+    ina226
     motor_driver
     stm32cubemx
     pid_regulator

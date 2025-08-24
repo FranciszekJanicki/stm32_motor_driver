@@ -4,3 +4,4 @@ git@github.com:FranciszekJanicki/as5600.git submodules/as5600
 git@github.com:FranciszekJanicki/pid_regulator.git submodules/pid_regulator
 git@github.com:FranciszekJanicki/step_motor.git submodules/step_motor
 git@github.com:FranciszekJanicki/rotary_encoder.git submodules/rotary_encoder
+git@github.com:FranciszekJanicki/ina226.git submodules/ina226.git

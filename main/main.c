@@ -2,6 +2,7 @@
 #include "as5600.h"
 #include "gpio.h"
 #include "i2c.h"
+#include "ina226.h"
 #include "motor_driver.h"
 #include "pid_regulator.h"
 #include "rotary_encoder.h"
@@ -27,6 +28,7 @@
 #define MAX_SPEED (1000.0F)
 #define MIN_ACCELERATION (0.0F)
 #define MAX_ACCELERATION (1000.0F)
+#define MAGNET_POLARITY (0U)
 #define STEP_CHANGE (1.8F / 16.0F)
 #define CURRENT_LIMIT (2.0F)
 #define DEAD_ERROR (1.8F / 16.0F)
@@ -47,6 +49,31 @@
 #define REFERENCE_POSITION (300.0F)
 #define REFERENCE_SPEED (100.0F)
 #define REFERENCE_ACCELERATION (100.0F)
+
+typedef struct {
+    TIM_HandleTypeDef* timer;
+    uint16_t channel;
+} a4988_pwm_user_t;
+
+typedef struct {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+} a4988_gpio_user_t;
+
+typedef struct {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+} as5600_gpio_user_t;
+
+typedef struct {
+    I2C_HandleTypeDef* i2c;
+    uint8_t address;
+} as5600_i2c_user_t;
+
+typedef struct {
+    I2C_HandleTypeDef* i2c;
+    uint8_t address;
+} ina226_i2c_user;
 
 static bool frequency_to_prescaler_and_period(uint32_t frequency_hz,
                                               uint32_t clock_hz,
@@ -120,11 +147,11 @@ static a4988_err_t a4988_pwm_set_frequency(void* user, uint32_t frequency)
             compare = period;
         }
 
-        __HAL_TIM_DISABLE(A4988_PWM_TIMER);
-        __HAL_TIM_SET_COUNTER(A4988_PWM_TIMER, 0U);
-        __HAL_TIM_SET_PRESCALER(A4988_PWM_TIMER, prescaler);
-        __HAL_TIM_SET_AUTORELOAD(A4988_PWM_TIMER, period);
-        __HAL_TIM_SET_COMPARE(A4988_PWM_TIMER, A4988_PWM_CHANNEL, compare);
+        __HAL_TIM_DISABLE(user);
+        __HAL_TIM_SET_COUNTER(user, 0U);
+        __HAL_TIM_SET_PRESCALER(user, prescaler);
+        __HAL_TIM_SET_AUTORELOAD(user, period);
+        __HAL_TIM_SET_COMPARE(user, A4988_PWM_CHANNEL, compare);
         __HAL_TIM_ENABLE(A4988_PWM_TIMER);
     }
 
@@ -141,9 +168,7 @@ static a4988_err_t a4988_gpio_write_pin(void* user, uint32_t pin, bool state)
 static step_motor_err_t step_motor_device_set_frequency(void* user,
                                                         uint32_t frequency)
 {
-    a4988_t* a4988 = (a4988_t*)user;
-
-    a4988_set_frequency(a4988, frequency);
+    a4988_set_frequency(user, frequency);
 
     return STEP_MOTOR_ERR_OK;
 }
@@ -152,9 +177,7 @@ static step_motor_err_t step_motor_device_set_direction(
     void* user,
     step_motor_direction_t direction)
 {
-    a4988_t* a4988 = (a4988_t*)user;
-
-    a4988_set_direction(a4988, (a4988_direction_t)direction);
+    a4988_set_direction(user, (a4988_direction_t)direction);
 
     return STEP_MOTOR_ERR_OK;
 }
@@ -164,7 +187,7 @@ static as5600_err_t as5600_bus_write_data(void* user,
                                           uint8_t const* data,
                                           size_t data_size)
 {
-    HAL_I2C_Mem_Write(AS5600_I2C_BUS,
+    HAL_I2C_Mem_Write(user,
                       AS5600_I2C_ADDRESS,
                       address,
                       1U,
@@ -180,7 +203,7 @@ static as5600_err_t as5600_bus_read_data(void* user,
                                          uint8_t* data,
                                          size_t data_size)
 {
-    HAL_I2C_Mem_Read(AS5600_I2C_BUS,
+    HAL_I2C_Mem_Read(user,
                      AS5600_I2C_ADDRESS,
                      address,
                      1U,
@@ -244,6 +267,7 @@ as5600_err_t as5600_init_chip(as5600_t* as5600,
 motor_driver_err_t motor_driver_encoder_get_position(void* user,
                                                      float32_t* position)
 {
+    as5600_set_direction(user, MAGNET_POLARITY);
     as5600_get_angle_data_scaled_bus(user, position);
 
     return MOTOR_DRIVER_ERR_OK;
@@ -307,6 +331,7 @@ int main(void)
         &(a4988_config_t){.pin_dir = A4988_DIR_PIN},
         &(a4988_interface_t){.gpio_user = A4988_DIR_GPIO,
                              .gpio_write_pin = a4988_gpio_write_pin,
+                             .pwm_user = A4988_PWM_TIMER,
                              .pwm_start = a4988_pwm_start,
                              .pwm_stop = a4988_pwm_stop,
                              .pwm_set_frequency = a4988_pwm_set_frequency});
@@ -319,6 +344,7 @@ int main(void)
                            .max_angle = MAX_POSITION},
         &(as5600_interface_t){.gpio_user = AS5600_DIR_GPIO,
                               .gpio_write_pin = as5600_gpio_write_pin,
+                              .bus_user = AS5600_I2C_BUS,
                               .bus_write_data = as5600_bus_write_data,
                               .bus_read_data = as5600_bus_read_data});
 
@@ -363,6 +389,7 @@ int main(void)
         &(motor_driver_interface_t){
             .encoder_user = &as5600,
             .encoder_get_position = motor_driver_encoder_get_position,
+            .fault_user = NULL,
             .fault_get_current = motor_driver_fault_get_current,
             .motor_user = &motor,
             .motor_set_speed = motor_driver_motor_set_speed,
